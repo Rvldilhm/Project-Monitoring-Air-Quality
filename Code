@@ -89,5 +89,6 @@ void loop() {
       Blynk.virtualWrite(V10, 0);
       digitalWrite(ledBadQuality, LOW);
     }
-
+  }
+}
     
