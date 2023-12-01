@@ -1,23 +1,32 @@
+//Masukan template id, template name dan auth token dari bylnk yang digunkan
 #define BLYNK_TEMPLATE_ID "TMPL64kx7BMnh"
 #define BLYNK_TEMPLATE_NAME "relay"
 #define BLYNK_AUTH_TOKEN "M2laaUXwKszwPezQeVTfHx8VyNrFnRGk"
-
+//Masukan libary yang digunakan
 #include <WiFi.h>
 #include <BlynkSimpleEsp32.h>
 
-const int MQ135pin = 34;        // Define the pin for MQ135 sensor
+// Definisikan pin sensor MQ135
+const int MQ135pin = 34;
+// Definisikan pin LED untuk kualitas udara buruk
 const int ledBadQuality = 4;
-const int SMOKE_THRESHOLD = 10; // Adjust this threshold based on your application
-char ssid[] = "Minta izin dulu"; // Replace with your WiFi SSID
-char pass[] = "rivaldiilham";    // Replace with your WiFi password
+// Definisikan ambang asap untuk deteksi level CO
+const int SMOKE_THRESHOLD = 10;
+// Definisikan nama SSID dan kata sandi WiFi
+char ssid[] = "Minta izin dulu";
+char pass[] = "rivaldiilham";
 
-bool isRunning = false; // Flag to track if the system is running
+// Variabel untuk melacak apakah sistem sedang berjalan
+bool isRunning = false;
 
+// Fungsi setup()
 void setup() {
+  // Inisialisasi komunikasi serial
   Serial.begin(115200);
+  // Inisialisasi koneksi Blynk menggunakan token, SSID, dan kata sandi WiFi yang disediakan
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
 
-  // Initialize Blynk chart
+  // Inisialisasi grafik Blynk
   Blynk.virtualWrite(V1, "CLEARDATA");
   Blynk.virtualWrite(V6, "CLEARDATA");
   Blynk.virtualWrite(V7, "CLEARDATA");
@@ -25,76 +34,60 @@ void setup() {
   Blynk.virtualWrite(V5, "CLEARDATA");
 }
 
+// Fungsi loop()
 void loop() {
+  // Jalankan proses Blynk
   Blynk.run();
 
+  // Hanya jalankan kode berikut jika `isRunning` bernilai true
   if (isRunning) {
+    // Baca nilai analog dari pin sensor MQ135
     int rawValue = analogRead(MQ135pin);
+    // Hitung tegangan berdasarkan nilai mentah
     float voltage = rawValue / 1024.0 * 5.0;
+    // Hitung resistansi sensor berdasarkan tegangan
     float resistance = (5.0 - voltage) / voltage;
 
-    // Calculate CO2, CO, and other gases
+    // Hitung konsentrasi CO2, CO, metana, dan amonia
     float ppm = 1.0 / (0.03588 * pow(resistance, 1.336));
-    float co = ppm / 2.2;        // Approximate conversion from PPM to CO
-    float methane = ppm / 2.7;    // Approximate conversion from PPM to CH4
-    float ammonia = ppm / 3.6;    // Approximate conversion from PPM to NH3
+    float co = ppm / 2.2;
+    float methane = ppm / 2.7;
+    float ammonia = ppm / 3.6;
 
-    // Debugging: Print values to Serial Monitor
-    Serial.print("Raw Analog Value: ");
+    // Cetak data sensor ke Serial Monitor
+    Serial.print("Nilai Analog Asli: ");
     Serial.println(rawValue);
-    Serial.print("Voltage: ");
-    Serial.println(voltage, 2);    // Print with 2 decimal places
-    Serial.print("Sensor Resistance: ");
-    Serial.println(resistance, 2); // Print with 2 decimal places
-    Serial.print("CO2 PPM: ");
-    Serial.println(ppm, 2);        // Print with 2 decimal places
+    Serial.print("Tegangan: ");
+    Serial.println(voltage, 2);
+    Serial.print("Hambatan Sensor: ");
+    Serial.println(resistance, 2);
+    Serial.print("CO2 (PPM): ");
+    Serial.println(ppm, 2);
     Serial.print("CO: ");
-    Serial.println(co, 2);         // Print with 2 decimal places
-    Serial.print("Methane (CH4) PPM: ");
-    Serial.println(methane, 2);    // Print with 2 decimal places
-    Serial.print("Ammonia (NH3) PPM: ");
-    Serial.println(ammonia, 2);    // Print with 2 decimal places
+    Serial.println(co, 2);
+    Serial.print("Metana (CH4) (PPM): ");
+    Serial.println(methane, 2);
+    Serial.print("Amonia (NH3) (PPM): ");
+    Serial.println(ammonia, 2);
 
-    // Display CO2, CO, and other gases on Blynk app
+    // Tampilkan data CO2, CO, dan gas lain di aplikasi Blynk
     Blynk.virtualWrite(V1, ppm);
     Blynk.virtualWrite(V5, co);
     Blynk.virtualWrite(V6, methane);
     Blynk.virtualWrite(V7, ammonia);
     Blynk.virtualWrite(V9, ppm);
 
-    // Add CO2 value to Blynk chart
+    // Tambahkan nilai CO2 ke grafik Blynk
 
-    // Check CO2 levels and control LED
+    // Periksa level CO dan kontrol LED
     if (co > SMOKE_THRESHOLD) {
+      // Nyalakan LED dan kirim nilai 1 ke pin virtual V10
       Blynk.virtualWrite(V10, 1);
       digitalWrite(ledBadQuality, HIGH);
     } else {
+      // Matikan LED dan kirim nilai 0 ke pin virtual V10
       Blynk.virtualWrite(V10, 0);
       digitalWrite(ledBadQuality, LOW);
     }
 
-    delay(500); // Adjust the delay based on your application needs
-  }
-}
-
-BLYNK_CONNECTED() {
-  // Your existing code for BLYNK_CONNECTED
-  // ...
-}
-
-BLYNK_WRITE(V0) {
-  int startStopButton = param.asInt();
-  if (startStopButton == 1) { // Button is pressed (Start)
-    isRunning = true;
-  } else { // Button is not pressed (Stop)
-    isRunning = false;
-    // Reset values or perform any other stop-related actions
-    Blynk.virtualWrite(V1, 0); // Reset CO2 value
-    Blynk.virtualWrite(V5, 0); // Reset CO value
-    Blynk.virtualWrite(V6, 0); // Reset Methane value
-    Blynk.virtualWrite(V7, 0); // Reset Ammonia value
-    Blynk.virtualWrite(V9, 0); // Reset another V9 value (adjust as needed)
-    Blynk.virtualWrite(V10, 0); // Turn off LED
-    digitalWrite(ledBadQuality, LOW);
-  }
-}
+    
