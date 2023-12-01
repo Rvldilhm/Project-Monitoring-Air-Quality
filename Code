@@ -1,0 +1,100 @@
+#define BLYNK_TEMPLATE_ID "TMPL64kx7BMnh"
+#define BLYNK_TEMPLATE_NAME "relay"
+#define BLYNK_AUTH_TOKEN "M2laaUXwKszwPezQeVTfHx8VyNrFnRGk"
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+
+const int MQ135pin = 34;        // Define the pin for MQ135 sensor
+const int ledBadQuality = 4;
+const int SMOKE_THRESHOLD = 10; // Adjust this threshold based on your application
+char ssid[] = "Minta izin dulu"; // Replace with your WiFi SSID
+char pass[] = "rivaldiilham";    // Replace with your WiFi password
+
+bool isRunning = false; // Flag to track if the system is running
+
+void setup() {
+  Serial.begin(115200);
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
+  // Initialize Blynk chart
+  Blynk.virtualWrite(V1, "CLEARDATA");
+  Blynk.virtualWrite(V6, "CLEARDATA");
+  Blynk.virtualWrite(V7, "CLEARDATA");
+  Blynk.virtualWrite(V9, "CLEARDATA");
+  Blynk.virtualWrite(V5, "CLEARDATA");
+}
+
+void loop() {
+  Blynk.run();
+
+  if (isRunning) {
+    int rawValue = analogRead(MQ135pin);
+    float voltage = rawValue / 1024.0 * 5.0;
+    float resistance = (5.0 - voltage) / voltage;
+
+    // Calculate CO2, CO, and other gases
+    float ppm = 1.0 / (0.03588 * pow(resistance, 1.336));
+    float co = ppm / 2.2;        // Approximate conversion from PPM to CO
+    float methane = ppm / 2.7;    // Approximate conversion from PPM to CH4
+    float ammonia = ppm / 3.6;    // Approximate conversion from PPM to NH3
+
+    // Debugging: Print values to Serial Monitor
+    Serial.print("Raw Analog Value: ");
+    Serial.println(rawValue);
+    Serial.print("Voltage: ");
+    Serial.println(voltage, 2);    // Print with 2 decimal places
+    Serial.print("Sensor Resistance: ");
+    Serial.println(resistance, 2); // Print with 2 decimal places
+    Serial.print("CO2 PPM: ");
+    Serial.println(ppm, 2);        // Print with 2 decimal places
+    Serial.print("CO: ");
+    Serial.println(co, 2);         // Print with 2 decimal places
+    Serial.print("Methane (CH4) PPM: ");
+    Serial.println(methane, 2);    // Print with 2 decimal places
+    Serial.print("Ammonia (NH3) PPM: ");
+    Serial.println(ammonia, 2);    // Print with 2 decimal places
+
+    // Display CO2, CO, and other gases on Blynk app
+    Blynk.virtualWrite(V1, ppm);
+    Blynk.virtualWrite(V5, co);
+    Blynk.virtualWrite(V6, methane);
+    Blynk.virtualWrite(V7, ammonia);
+    Blynk.virtualWrite(V9, ppm);
+
+    // Add CO2 value to Blynk chart
+
+    // Check CO2 levels and control LED
+    if (co > SMOKE_THRESHOLD) {
+      Blynk.virtualWrite(V10, 1);
+      digitalWrite(ledBadQuality, HIGH);
+    } else {
+      Blynk.virtualWrite(V10, 0);
+      digitalWrite(ledBadQuality, LOW);
+    }
+
+    delay(500); // Adjust the delay based on your application needs
+  }
+}
+
+BLYNK_CONNECTED() {
+  // Your existing code for BLYNK_CONNECTED
+  // ...
+}
+
+BLYNK_WRITE(V0) {
+  int startStopButton = param.asInt();
+  if (startStopButton == 1) { // Button is pressed (Start)
+    isRunning = true;
+  } else { // Button is not pressed (Stop)
+    isRunning = false;
+    // Reset values or perform any other stop-related actions
+    Blynk.virtualWrite(V1, 0); // Reset CO2 value
+    Blynk.virtualWrite(V5, 0); // Reset CO value
+    Blynk.virtualWrite(V6, 0); // Reset Methane value
+    Blynk.virtualWrite(V7, 0); // Reset Ammonia value
+    Blynk.virtualWrite(V9, 0); // Reset another V9 value (adjust as needed)
+    Blynk.virtualWrite(V10, 0); // Turn off LED
+    digitalWrite(ledBadQuality, LOW);
+  }
+}
